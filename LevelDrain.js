@@ -609,7 +609,7 @@ Game_Battler.prototype.levelDrain = function(amount, target) {
 		this.changeExp(this.currentExp() + this.expGain);
 		
 		this.updateStats(target, amount);
-		if (parameters'Show messages'){	
+		if (parameters['Show messages']){	
 			this.displayLvlDrain(amount, target.name());
 			if (this.lvlGain > 0) {
 				this.displayDrainLevelUp();	
@@ -633,7 +633,7 @@ Game_Battler.prototype.expDrain = function(amount, target) {
 		this.changeExp(this.currentExp() + this.expGain, 0);
 		var lvlLoss = targetLvl-target.level;
 		this.updateStats(target, lvlLoss);	
-		if (parameters'Show messages'){				
+		if (parameters['Show messages']){				
 			if (lvlLoss > 0){
 				this.displayLvlDrain(lvlLoss, target.name());
 			}
