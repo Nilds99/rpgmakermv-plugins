@@ -742,20 +742,20 @@ Game_Battler.prototype.saveOldParams = function(){
 Game_Battler.prototype.displayStatsUp = function(){
 	var stats = '[' + this.name() +' \\c[16]' + TextManager.levelA + '\\c[0] ' + (this.level - this.lvlGain) 
 	if (this.lvlGain > 0) {
-		stats += ' + \\c[24]' + this.lvlGain + '\\c[0]';
+		stats += ' \\c[24]+'  + this.lvlGain + '\\c[0]';
 	}
 	stats += ']\n\\c[16]' + TextManager.param(0) + '\\c[0]:  ' + this.oldParams[0];
 	var paramGain = this.param(0) - this.oldParams[0];
 	if (paramGain > 0) {
-		stats += ' +\\c[24] ' + paramGain + '\\c[0]    ';
+		stats += ' \\c[24]+' + paramGain + '\\c[0]    ';
 	}
 	else{
-		stats += '         '
+		stats += '        '
 	}
 	stats += '\\c[16]' + TextManager.param(1) + '\\c[0]:  ' + this.oldParams[1];
 	paramGain = this.param(1) - this.oldParams[1];
 	if (paramGain > 0) {
-		stats += ' +\\c[24] ' + paramGain + '\\c[0]\n';
+		stats += ' \\c[24]+'  + paramGain + '\\c[0]\n';
 	}
 	else{
 		stats += '\n'
@@ -763,23 +763,23 @@ Game_Battler.prototype.displayStatsUp = function(){
 	stats += '\\c[16]' + TextManager.param(2) + '\\c[0]:  ' + this.oldParams[2];
 	paramGain = this.param(2) - this.oldParams[2];
 	if (paramGain > 0) {
-		stats += ' +\\c[24] ' + paramGain + '\\c[0]  ';
+		stats += ' \\c[24]+'   + paramGain + '\\c[0]  ';
 	}
 	else{
-		stats += '      '
+		stats += '     '
 	}
 	stats += '\\c[16]' + TextManager.param(4) + '\\c[0]:  ' + this.oldParams[4];
 	paramGain = this.param(4) - this.oldParams[4];
 	if (paramGain > 0) {
-		stats += ' +\\c[24] ' + paramGain + '\\c[0]  ';
+		stats += ' \\c[24]+'  + paramGain + '\\c[0]  ';
 	}
 	else{
-		stats += '      '
+		stats += '     '
 	}
 	stats += '\\c[16]' + TextManager.param(5) + '\\c[0]:  ' + this.oldParams[5];
 	paramGain = this.param(5) - this.oldParams[5];
 	if (paramGain > 0) {
-		stats += ' +\\c[24] ' + paramGain + '\\c[0]\n';
+		stats += ' \\c[24]+'  + paramGain + '\\c[0]\n';
 	}
 	else{
 		stats += '\n'
@@ -787,23 +787,23 @@ Game_Battler.prototype.displayStatsUp = function(){
 	stats += '\\c[16]' + TextManager.param(3) + '\\c[0]:  ' + this.oldParams[3];
 	paramGain = this.param(3) - this.oldParams[3];
 	if (paramGain > 0) {
-		stats += ' +\\c[24] ' + paramGain + '\\c[0]  ';
+		stats += ' \\c[24]+'  + paramGain + '\\c[0]  ';
 	}
 	else{
-		stats += '      '
+		stats += '     '
 	}
 	stats += '\\c[16]' + TextManager.param(6) + '\\c[0]:  ' + this.oldParams[6];
 	paramGain = this.param(6) - this.oldParams[6];
 	if (paramGain > 0) {
-		stats += ' +\\c[24] ' + paramGain + '\\c[0]  ';
+		stats += ' \\c[24]+'  + paramGain + '\\c[0]  ';
 	}
 	else{
-		stats += '      '
+		stats += '     '
 	}
 	stats += '\\c[16]' + TextManager.param(7) + '\\c[0]:  ' + this.oldParams[7];
 	paramGain = this.param(7) - this.oldParams[7];
 	if (paramGain > 0) {
-		stats += ' +\\c[24] ' + paramGain + '\\c[0]';
+		stats += ' \\c[24]+'  + paramGain + '\\c[0]';
 	}
 	$gameMessage.newPage();
 	$gameMessage.add(stats);
