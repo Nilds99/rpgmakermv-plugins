@@ -666,7 +666,7 @@ Game_Battler.prototype.levelDrain = function(amount, target) {
 		if (parameters['Show messages'] == 1){	
 			this.displayLvlDrain(amount, target.name());
 			if (this.lvlGain > 0) {
-				if(parameters['Show stats'] == 1) {
+				if(parameters['Show stats'] == 1 || !parameters['Show stats']) {
 					this.displayStatsUp();
 				}
 				else {
@@ -700,7 +700,7 @@ Game_Battler.prototype.expDrain = function(amount, target) {
 				this.displayExpDrain(target.name());
 			}
 			if (this.lvlGain > 0) {
-				if(parameters['Show stats'] == 1) {
+				if(parameters['Show stats'] == 1 || !parameters['Show stats']) {
 					this.displayStatsUp();
 				}
 				else {
