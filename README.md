@@ -29,4 +29,5 @@ LevelDrain.js adds Level and experience drain for enemies and actors.
 
 Changelog:
 v1.1 Bugfixes, added stats-display, added plugin command "showenemystats [Enemy]"
+
 v1.0 Release
