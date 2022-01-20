@@ -1,4 +1,4 @@
-# LevelDrain
+# Level Drain (RPG Maker MV)
 
 LevelDrain.js adds Level and experience drain for enemies and actors.
 
@@ -13,7 +13,7 @@ LevelDrain.js adds Level and experience drain for enemies and actors.
 
    4. Multiple Plugincommands for controlling and reading important statistics. 
    
-# レベルドレイン
+# レベルドレイン (RPGツクールMV)
 (機械翻訳) LevelDrain.js 敵やアクターのレベルや経験値ドレイン
 
    1. 敵の開始レベルや経験値をカスタマイズ可能。
