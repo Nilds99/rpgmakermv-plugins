@@ -2,6 +2,7 @@
 // LevelDrain.js
 // v1.0 Release
 // v1.1 Bugfixes, added stats-display, added plugin command "showenemystats [Enemy]"
+// v1.2 Improved drain messages, added status drain mechanic, minor code improvements
 //=============================================================================
 /*:
  * @plugindesc v1.1 Level and experience drain for enemies and actors.
@@ -47,6 +48,8 @@
  *
  * 4. Multiple Plugincommands for controlling and reading important statistics. 
  *
+ * 5. Status drain mechanic for enemies and actors.
+ *
  * =============================================================================
  * Step 1 - Enemies Notetags
  * =============================================================================
@@ -57,31 +60,31 @@
  *
  *  Example: <level:5> → the enemy will start at level 5
  *
- *  <level:x>	
+ *  <level:x>
  *  defines the initial level for an enemy and enables level drain.
  *	
- *  <mhp:x>	
+ *  <mhp:x>
  *  defines the additional maxHp for every level up.
  *
- *  <mmp:x>	
+ *  <mmp:x>
  *  defines the additional maxMp for every level up.
  *
- *  <atk:x>	-
+ *  <atk:x>
  *  defines the additional attack for every level up.
  *
- *  <def:x>	 
+ *  <def:x>
  *  defines the additional defense for every level up.
  *
- *  <mat:x>	
+ *  <mat:x>
  *  defines the additional magick for every level up.
  *
- *  <mdf:x>	
+ *  <mdf:x>
  *  defines the additional magick for every level up.
  *
- *  <agi:x>	 
+ *  <agi:x>
  *  defines the additional agility for every level up.
  *
- *  <lck:x>	
+ *  <lck:x>
  *  defines the additional for every level up.
  *
  * =============================================================================
@@ -133,6 +136,15 @@
  * allyleveldrain [Actor] [Amount] [Target Actor]
  * -> level drain between two actors.
  * 
+ * statusdrain [Enemy] [status] [Amount] [Actor]
+ * -> status drain between enemy and actors.
+ *    Note1: If you put in a negative amount, the enemy gets drained by the actor.
+ *    Note2: statuses: mhp, mmp, atk, def, mat, mdf, agi, lck
+ *
+ * allystatusdrain [Actor] [status] [Amount] [Target Actor]
+ * -> status drain between two actors.
+ *    Note: statuses: mhp, mmp, atk, def, mat, mdf, agi, lck
+ *
  * allyexpdrain [Actor] [Amount] [Target Actor]
  * -> exp drain between two actors.
  * 
@@ -213,6 +225,8 @@
  *
  * 4. 重要な統計情報を制御し、読み取るための複数のプラグインコマンド。
  *
+ * 5. 敵やアクターのステータス・ドレインメカニック。
+ *
  * =============================================================================
  * ステップ1 - 敵のノートタグ
  * =============================================================================
@@ -284,22 +298,31 @@
  * プラグインコマンド一覧（[]は使用しないでください。）
  * =============================================================================
  *
- * leveldrain [エネミーID] [金額] [アクターID] 
+ * leveldrain [エネミーID] [量] [アクターID] 
  * -> 敵と俳優の間のレベルドレイン。
  *    注：マイナス分を入れると、敵は役者にドレインされます。
  *
- * expdrain [エネミーID] [金額] [アクターID]
+ * expdrain [エネミーID] [量] [アクターID]
  * -> 敵と俳優の間の経験のドレイン。
  *    注：マイナス分を入れると、敵は役者にドレインされます。
  * 
- * allyleveldrain [アクターID] [金額] [ターゲットアクターID]
+ * allyleveldrain [アクターID] [量] [ターゲットアクターID]
  * -> 二人のアクター間のレベルドレイン。
  * 
- * allyexpdrain [アクターID] [金額] [ターゲットアクターID]
+ * allyexpdrain [アクターID] [量] [ターゲットアクターID]
  * -> 二人のアクター間のエクスペリエンスドレイン。
  * 
  * showenemystats [エネミーID]
  * -> 敵のステータスを見る
+ *
+ * statusdrain [エネミーID] [ステータス] [量] [アクターID]。
+ * -> 敵とアクター間のステータス・ドレイン。
+ * 注1：マイナスの金額を入れると、敵はアクターからドレインされる。
+ * 注2：ステータス： mhp, mmp, atk, def, mat, mdf, agi, lck
+ *
+ * allystatusdrain [アクターID] [ステータス] [量] [ターゲットアクターID]。
+ * -> 2つのアクター間でステータスのドレインを行う。
+ * 注：ステータス： mhp, mmp, atk, def, mat, mdf, agi, lck
  *
  * resetleveldrain [エネミーID]							
  * -> 敵のレベルを開始値にリセットします。
@@ -327,7 +350,10 @@
  * -> 収集した敵のExpを特定のゲーム変数に書き込みます。
  * 
  */
- 
+//-----------------------------------------------------------------------------
+// variables
+//-----------------------------------------------------------------------------
+
 var parameters = PluginManager.parameters('LevelDrain');
 var enemyClass = Number(parameters['Class']);
 
@@ -409,7 +435,6 @@ Leveled_Enemy.prototype.changeExp = function(exp, show) {
 
 Leveled_Enemy.prototype.levelUp = function() {
     this.level++;
-	this.lvlGain++;
 };
 
 Leveled_Enemy.prototype.levelDown = function() {
@@ -451,6 +476,9 @@ Leveled_Enemy.prototype.reset = function(){
 	this.changeExp(this.expForLevel(this.startLevel));
 	this.lvlLost = 0;
 	this.expLost = 0;
+	for(var i = 0; i < 8; i++){
+		this.drainParam[i] = 0;
+	}
 };
 
 Leveled_Enemy.prototype.enemy = function() {
@@ -461,36 +489,36 @@ Leveled_Enemy.prototype.paramBase = function(paramId) {
     return this.enemy().params[paramId];
 };
 
-Leveled_Enemy.prototype.levelStats = function(levelAlteration) {
+Leveled_Enemy.prototype.levelStats = function() {
 	if(this.enemy().meta.mhp){
-		this._paramPlus[0] = parseInt(this.enemy().meta.mhp) * levelAlteration;
+		this._paramPlus[0] = parseInt(this.enemy().meta.mhp) * this.levelAlteration();
 	}
 	if(this.enemy().meta.mmp){	
-		this._paramPlus[1] = parseInt(this.enemy().meta.mmp) * levelAlteration;
+		this._paramPlus[1] = parseInt(this.enemy().meta.mmp) * this.levelAlteration();
 	}
 	if(this.enemy().meta.atk){
-		this._paramPlus[2] = parseInt(this.enemy().meta.atk) * levelAlteration;
+		this._paramPlus[2] = parseInt(this.enemy().meta.atk) * this.levelAlteration();
 	}
 	if(this.enemy().meta.def){
-		this._paramPlus[3] = parseInt(this.enemy().meta.def) * levelAlteration;
+		this._paramPlus[3] = parseInt(this.enemy().meta.def) * this.levelAlteration();
 	}
 	if(this.enemy().meta.mat){
-		this._paramPlus[4] = parseInt(this.enemy().meta.mat) * levelAlteration;
+		this._paramPlus[4] = parseInt(this.enemy().meta.mat) * this.levelAlteration();
 	}
 	if(this.enemy().meta.mdf){
-		this._paramPlus[5] = parseInt(this.enemy().meta.mdf) * levelAlteration;	
+		this._paramPlus[5] = parseInt(this.enemy().meta.mdf) * this.levelAlteration();	
 	}
 	if(this.enemy().meta.agi){
-		this._paramPlus[6] = parseInt(this.enemy().meta.agi) * levelAlteration;
+		this._paramPlus[6] = parseInt(this.enemy().meta.agi) * this.levelAlteration();
 	}
 	if(this.enemy().meta.lck){
-		this._paramPlus[7] = parseInt(this.enemy().meta.lck) * levelAlteration;		
+		this._paramPlus[7] = parseInt(this.enemy().meta.lck) * this.levelAlteration();		
 	}	
 };
 
 Leveled_Enemy.prototype.param = function(paramId) {
-	this.levelStats(this.levelAlteration());
-    var value = this.paramBase(paramId) + this.paramPlus(paramId);
+	this.levelStats();
+    var value = this.paramBase(paramId) + this.paramPlus(paramId) + this.drainParam[paramId];
     value *= this.paramRate(paramId) * this.paramBuffRate(paramId);
     var maxValue = this.paramMax(paramId);
     var minValue = this.paramMin(paramId);
@@ -509,15 +537,11 @@ Game_Action.prototype.apply = function(target) {
 	if (target.result().isHit()) {
 		if (this.item().meta.Leveldrain) {
 			if (target.isActor()){
-				$gameActors._data[target._actorId].initDrainStats();
 				if (this.subject().isEnemy() && $leveledEnemies._data[this.subject().nativeId]) {
-					$gameActors._data[target._actorId].initDrainStats();
 					$leveledEnemies._data[this.subject().nativeId].levelDrain(this.item().meta.Leveldrain, target);
 
 				}
 				else{
-					$gameActors._data[this.subject()._actorId].initDrainStats();
-					$gameActors._data[target._actorId].initDrainStats();
 					$gameActors._data[this.subject()._actorId].levelDrain(this.item().meta.Leveldrain, target)
 				}
 			}
@@ -526,23 +550,18 @@ Game_Action.prototype.apply = function(target) {
 					$leveledEnemies._data[this.subject().nativeId].levelDrain(this.item().meta.Leveldrain, $leveledEnemies._data[target.nativeId]);
 				}
 				else if($leveledEnemies._data[target.nativeId]) {
-					$gameActors._data[this.subject()._actorId].initDrainStats();
 					$gameActors._data[this.subject()._actorId].levelDrain(this.item().meta.Leveldrain, $leveledEnemies._data[target.nativeId]);
 				}
 			}
 		}	
 		else if (this.item().meta.Expdrain) {
 			if (target.isActor()){
-				$gameActors._data[target._actorId].initDrainStats();
 				if (this.subject().isEnemy() && $leveledEnemies._data[this.subject().nativeId]) {
 					//Enemy vs Actor
-					$gameActors._data[target._actorId].initDrainStats();
 					$leveledEnemies._data[this.subject().nativeId].expDrain(this.item().meta.Expdrain, target);
 				}
 				else{ 
 					//Actor vs Actor
-					$gameActors._data[this.subject()._actorId].initDrainStats();
-					$gameActors._data[target._actorId].initDrainStats();
 					$gameActors._data[this.subject()._actorId].expDrain(this.item().meta.Expdrain, target)
 				}
 			}
@@ -553,7 +572,6 @@ Game_Action.prototype.apply = function(target) {
 				}
 				//Actor vs Enemy
 				else if($leveledEnemies._data[target.nativeId]) {
-					$gameActors._data[this.subject()._actorId].initDrainStats();
 					$gameActors._data[this.subject()._actorId].expDrain(this.item().meta.Expdrain, $leveledEnemies._data[target.nativeId]);
 				}
 			}	
@@ -562,7 +580,7 @@ Game_Action.prototype.apply = function(target) {
 };
 
 //-----------------------------------------------------------------------------
-// Datamanager alias
+// Datamanager
 //-----------------------------------------------------------------------------
 
 var DataManager_createGameObjects = DataManager.createGameObjects;
@@ -577,6 +595,11 @@ DataManager.extractSaveContents = function(contents) {
 	if(contents.enemyProgress != undefined){
 		$leveledEnemies = contents.enemyProgress;	
 	}
+	for (var i = 0; i < $gameActors._data.length; i++){
+		if($gameActors._data[i] && !$gameActors._data[i].drainParam){
+			$gameActors._data[i].initDrainStats();
+		}
+	}
 };
 
 var DataManager_makeSaveContents = DataManager.makeSaveContents;
@@ -585,7 +608,6 @@ DataManager.makeSaveContents = function() {
 	contents.enemyProgress = $leveledEnemies;
 	return contents;
 };
-
 
 //-----------------------------------------------------------------------------
 // Additions to Game_Battler
@@ -602,47 +624,49 @@ Game_Battler.prototype.initialize = function() {
 	this.lvlStolen = 0;
 	this.hppercentage = 0;
 	this.mppercentage = 0;
+	this.drainParam = [];
+	for(var i = 0; i < 8; i++){
+		this.drainParam[i] = 0;
+	}	
 };
 
-Game_Battler.prototype.updateStats = function(target, lvlLost){
-	target.lvlLost += lvlLost;
-	target.expLost += this.expGain;
+Game_Battler.prototype.updateStats = function(){
 	this.lvlStolen += this.lvlGain;
 	this.expStolen += this.expGain;
 };
 
-Game_Battler.prototype.paramCorrection = function(target, amount){
-		if(this.enemyId && target._actorId){ 
-			//enemy vs actor
-			this.applyStatsOnTroop(this.lvlGain);
-			target.actorParamCorrection();
-		}
-		else if(this.enemyId && target.enemyId){ 
-			//enemy vs enemy
-			this.applyStatsOnTroop(this.lvlGain);
-			target.applyStatsOnTroop(-amount);
-		}
-		else if(target.enemyId){ 
-			//actor vs enemy
-			target.applyStatsOnTroop(-amount);
+Game_Battler.prototype.paramCorrection = function(){
+	if(this.enemyId){ 
+		//enemy 
+		this.applyStatsOnTroop(this.lvlGain);
+	}
+	else{
+		//actor
+		if (this.lvlGain != 0){
 			this.actorParamCorrection();
-		}
-		else{
-			//actor vs actor
-			this.actorParamCorrection();
-			target.actorParamCorrection();
-		}
+		}		
+	}
 };
 
-Game_Battler.prototype.setParamPercentage = function(target){
+Game_Battler.prototype.setParamPercentage = function(){
 	if(this.isActor()){
 		this.hppercentage = this.hp / this.mhp;
 		this.mppercentage = this.mp / this.mmp;
 	}
-	if(target.isActor()){
-		target.hppercentage = target.hp / target.mhp;
-		target.mppercentage = target.mp / target.mmp;
-	}
+};
+
+Game_Battler.prototype.addDrainParam = function(param, amount){
+	this.drainParam[param] += amount;
+	this.refresh();
+};
+
+var Game_Battler_param = Game_Battler.prototype.param
+Game_Battler.prototype.param = function(paramId) {
+    var value = Game_Battler_param.call(this, paramId) + this.drainParam[paramId];
+    value *= this.paramRate(paramId) * this.paramBuffRate(paramId);
+    var maxValue = this.paramMax(paramId);
+    var minValue = this.paramMin(paramId);
+    return Math.round(value.clamp(minValue, maxValue));
 };
 
 Game_Battler.prototype.levelDrain = function(amount, target) {
@@ -650,71 +674,68 @@ Game_Battler.prototype.levelDrain = function(amount, target) {
 		amount = target.level - 1;
 	}
 	if (amount > 0){	
-		this.expGain = 0;
-		this.saveOldParams();
-		var targetLvl = target.level;
-		this.setParamPercentage(target); 
-		var expbonus = target.currentExp() - target.expForLevel(target.level);	
-		for(var i = 1; i <= amount; i++){
-			target.changeLevel(targetLvl - i, 0);
-			this.expGain = this.expGain + target.nextRequiredExp();
-			console.log(this.expGain);
-		}	
-		this.expGain += expbonus;
-		this.changeExp(this.currentExp() + this.expGain);	
-		this.updateStats(target, amount);
-		if (parameters['Show messages'] == 1){	
-			this.displayLvlDrain(amount, target.name());
-			if (this.lvlGain > 0) {
-				if(parameters['Show stats'] == 1 || !parameters['Show stats']) {
-					this.displayStatsUp();
-				}
-				else {
-					this.displayDrainLevelUp();
-				}		
-			}
-		}
-		this.paramCorrection(target, amount);
-		this.lvlGain = 0;
+		this.expDrain(target.currentExp() - target.expForLevel(target.level - amount), target);
 	}
+};
+
+Game_Battler.prototype.expDrainFormula = function(amount) {
+	this.expGain = amount;
+	this.saveUnchangedParams();
+	this.setParamPercentage(); 
+	this.lvlGain = this.level;
+	this.changeExp(this.currentExp() + this.expGain, 0);
+	this.lvlGain = this.level - this.lvlGain;
+	this.updateStats();	
+	if (parameters['Show messages'] == 1){	
+		if(parameters['Show stats'] == 1 || !parameters['Show stats']) {
+			this.displayStatsUp();
+		}
+		else if (this.levelGain > 0) {
+			this.displayDrainLevelUp();
+		}		
+		else if (this.levelGain < 0) {
+			this.displayLvlDrain(-this.lvlGain, this.name());
+		}
+		else if (this.expGain < 0) {
+			this.displayExpDrain(this.name());
+		}
+	}
+	this.paramCorrection();
+	this.lvlGain = 0;
+	this.expGain = 0;
 };
 
 Game_Battler.prototype.expDrain = function(amount, target) {
 	if(target.currentExp() <= amount) {
 		amount = target.currentExp() - 1;
 	}
-	if (amount > 0){			
-		this.expGain = amount;
-		this.saveOldParams();
-		this.setParamPercentage(target); 
-		var targetLvl = target.level;
-		target.changeExp(target.currentExp() - this.expGain, 0);
-		this.changeExp(this.currentExp() + this.expGain, 0);
-		var lvlLoss = targetLvl-target.level;
-		this.updateStats(target, lvlLoss);	
-		if (parameters['Show messages'] == 1){				
-			if (lvlLoss > 0){
-				this.displayLvlDrain(lvlLoss, target.name());
-			}
-			else {
-				this.displayExpDrain(target.name());
-			}
-			if (this.lvlGain > 0) {
-				if(parameters['Show stats'] == 1 || !parameters['Show stats']) {
-					this.displayStatsUp();
-				}
-				else {
-					this.displayDrainLevelUp();
-				}		
-			}		
-		}
-		this.paramCorrection(target, lvlLoss);
-		this.lvlGain = 0;
+	if (amount > 0){	
+		target.expDrainFormula(-amount);	
+		this.expDrainFormula(amount);
+	}
+};
+
+Game_Battler.prototype.statusDrainFormula = function(param, amount, target){
+	this.saveUnchangedParams();
+	this.addDrainParam(param, amount);
+	this.paramCorrection();
+	this.displayStatsUp();
+	this.saveUnchangedParams();
+};
+
+Game_Battler.prototype.statusDrain = function(param, amount, target){
+	if (target.param(param) <= amount) {
+		amount = target.param(param) - 1;		
+	}
+	if (amount > 0) {
+		target.statusDrainFormula(param, -amount, target)
+		this.statusDrainFormula(param, -amount, target)
 	}
 };
 
 Game_Battler.prototype.displayLvlDrain = function(amount, targetName){
-	var levelDown = parameters['Level reduced message'].format(targetName, amount, this.expGain, this.name(), '\n');
+	var levelDown = parameters['Level reduced message'].format(targetName, amount, this.expGain, 
+	this.name(), '\n');
 	$gameMessage.newPage();
 	$gameMessage.add(levelDown);
 
@@ -727,105 +748,103 @@ Game_Battler.prototype.displayExpDrain = function(targetName){
 };
 
 Game_Battler.prototype.displayDrainLevelUp = function(){
-	var levelUp = parameters['Level increased message'].format(this.name(), this.lvlGain, this.level, this.expGain, '\n');
+	var levelUp = parameters['Level increased message'].format(this.name(), this.lvlGain, this.level, 
+	this.expGain, '\n');
 	$gameMessage.newPage();
 	$gameMessage.add(levelUp);
 };
 
-Game_Battler.prototype.saveOldParams = function(){
+Game_Battler.prototype.saveUnchangedParams = function(){
 	this.oldParams = [];
 	for(var i = 0; i < 8; i++){
 		this.oldParams[i] = this.param(i);
 	}
 };
 
-Game_Battler.prototype.displayStatsUp = function(){
-	var stats = '[' + this.name() +' \\c[0]' + TextManager.level + '\\c[0] ' + (this.level - this.lvlGain) 
+Game_Battler.prototype.levelDisplayFormat = function() {
+	var stat = '[' + this.name() +' \\c[0]' + TextManager.level + '\\c[0] ' + 
+	(this.level - this.lvlGain);
 	if (this.lvlGain > 0) {
-		stats += ' \\c[24]+'  + this.lvlGain + '\\c[0]';
+		stat += ' \\c[24]+' + this.lvlGain + '\\c[0]';
 	}
-	stats += ']\n\\c[16]' + TextManager.hpA.padEnd(3) + '\\c[0]' + this.oldParams[0].toString().padStart(6);
-	var paramGain = this.param(0) - this.oldParams[0];
+	else if (this.lvlGain < 0) {
+		stat += ' \\c[18]' + this.lvlGain + '\\c[0]';
+	}
+	return stat + '] - ';
+};
+
+Game_Battler.prototype.expDisplayFormat = function(padCurrent, padAddition) {
+	var stat = '\\c[0]' + TextManager.expA + '\\c[0]' + 
+	(this.currentExp() - this.expGain).toString().padStart(padCurrent);
+	if (this.expGain > 0) {
+		stat += ' \\c[24]+' + this.expGain.toString().padEnd(padAddition) + '\\c[0]';
+	}
+	else if (this.expGain < 0) {
+		stat += ' \\c[18]' + this.expGain.toString().padEnd(padAddition+1) + '\\c[0]';
+	}
+	else {
+		stat += ''.padStart(padAddition+2);
+	}
+	return stat;
+};
+
+Game_Battler.prototype.statsDisplayFormat = function(statText, padStat, padCurrent, 
+padAddition, param, fillstring = ' ') {
+	var stat = '\\c[16]' + statText.padEnd(padStat, fillstring) + '\\c[0]' + 
+	this.oldParams[param].toString().padStart(padCurrent);
+	var paramGain = this.param(param) - this.oldParams[param];
 	if (paramGain > 0) {
-		stats += ' \\c[24]+' + paramGain.toString().padEnd(5) + '\\c[0]';
+		stat += ' \\c[24]+' + paramGain.toString().padEnd(padAddition) + '\\c[0]';
 	}
-	else{
-		stats += '       '
+	else if (paramGain < 0) {
+		stat += ' \\c[18]' + paramGain.toString().padEnd(padAddition+1) + '\\c[0]';
 	}
-	stats += '\\c[16]' + TextManager.mpA.padEnd(3) + '\\c[0]' + this.oldParams[1].toString().padStart(6);
-	paramGain = this.param(1) - this.oldParams[1];
-	if (paramGain > 0) {
-		stats += ' \\c[24]+'  + paramGain.toString().padEnd(5) + '\\c[0]\n';
+	else {
+		stat += ''.padStart(padAddition+2);
 	}
-	else{
-		stats += '\n'
-	}
-	stats += '\\c[16]' + TextManager.param(2).padEnd(4) + '\\c[0]' + this.oldParams[2].toString().padStart(4);
-	paramGain = this.param(2) - this.oldParams[2];
-	if (paramGain > 0) {
-		stats += ' \\c[24]+'  + paramGain.toString().padEnd(5) + '\\c[0]';
-	}
-	else{
-		stats += '       '
-	}
-	stats += '\\c[16]' + TextManager.param(4).padEnd(4) + '\\c[0]' + this.oldParams[4].toString().padStart(4);
-	paramGain = this.param(4) - this.oldParams[4];
-	if (paramGain > 0) {
-		stats += ' \\c[24]+'  + paramGain.toString().padEnd(5) + '\\c[0]';
-	}
-	else{
-		stats += '       '
-	}
-	stats += '\\c[16]' + TextManager.param(5).padEnd(4) + '\\c[0]' + this.oldParams[5].toString().padStart(4);
-	paramGain = this.param(5) - this.oldParams[5];
-	if (paramGain > 0) {
-		stats += ' \\c[24]+'  + paramGain.toString().padEnd(5) + '\\c[0]\n';
-	}
-	else{
-		stats += '\n'
-	}	
-	stats += '\\c[16]' + TextManager.param(3).padEnd(4) + '\\c[0]' + this.oldParams[3].toString().padStart(4);
-	paramGain = this.param(3) - this.oldParams[3];
-	if (paramGain > 0) {
-		stats += ' \\c[24]+'  + paramGain.toString().padEnd(5) + '\\c[0]';
-	}
-	else{
-		stats += '       '
-	}
-	stats += '\\c[16]' + TextManager.param(6).padEnd(4) + '\\c[0]' + this.oldParams[6].toString().padStart(4);
-	paramGain = this.param(6) - this.oldParams[6];
-	if (paramGain > 0) {
-		stats += ' \\c[24]+'  + paramGain.toString().padEnd(5) + '\\c[0]';
-	}
-	else{
-		stats += '       '
-	}
-	stats += '\\c[16]' + TextManager.param(7).padEnd(4, '　') + '\\c[0]' + this.oldParams[7].toString().padStart(4);
-	paramGain = this.param(7) - this.oldParams[7];
-	if (paramGain > 0) {
-		stats += ' \\c[24]+'  + paramGain.toString().padEnd(5) + '\\c[0]';
-	}
+	return stat;
+};
+
+Game_Battler.prototype.displayStatsUp = function() {
+	var stats = this.levelDisplayFormat();
+	stats += this.expDisplayFormat(8, 8)+ '\n';
+	stats += this.statsDisplayFormat(TextManager.hpA, 3, 6, 5, 0);
+	stats += this.statsDisplayFormat(TextManager.mpA, 3, 6, 5, 1) + '\n';
+	stats += this.statsDisplayFormat(TextManager.param(2), 4, 4, 5, 2);
+	stats += this.statsDisplayFormat(TextManager.param(4), 4, 4, 5, 4);
+	stats += this.statsDisplayFormat(TextManager.param(5), 4, 4, 5, 5) + '\n';
+	stats += this.statsDisplayFormat(TextManager.param(3), 4, 4, 5, 3);
+	stats += this.statsDisplayFormat(TextManager.param(6), 4, 4, 5, 6);
+	stats += this.statsDisplayFormat(TextManager.param(7), 4, 4, 5, 7, '　');
 	$gameMessage.newPage();
 	$gameMessage.add(stats);
 	//SoundManager.playRecovery();
 };
 
+Game_Battler.prototype.resetStatusDrain = function() {
+	for(var i = 0; i < 8; i++){
+		this.drainParam[i] = 0;
+	}
+}
 //-----------------------------------------------------------------------------
 // Additions to Game_Actor
 //-----------------------------------------------------------------------------
 
-Game_Actor.prototype.initDrainStats = function(){
-	if(!this.expLost){
-		this.lvlGain = 0;
-		this.expGain = 0;
-		this.lvlLost = 0;
-		this.expLost = 0;
-		this.expStolen = 0;
-		this.lvlStolen = 0;
-		this.hppercentage = 0;
-		this.mppercentage = 0;
+Game_Actor.prototype.initDrainStats = function() {
+	this.lvlGain = 0;
+	this.expGain = 0;
+	this.lvlLost = 0;
+	this.expLost = 0;
+	this.expStolen = 0;
+	this.lvlStolen = 0;
+	this.hppercentage = 0;
+	this.mppercentage = 0;
+	this.drainParam = [];
+	for(var i = 0; i < 8; i++){
+		this.drainParam[i] = 0;
 	}
 };
+
 Game_Actor.prototype.actorParamCorrection = function(){
 	this.setHp(Math.round(this.mhp * this.hppercentage));
 	this.setMp(Math.round(this.mmp * this.mppercentage));
@@ -839,7 +858,10 @@ Game_Actor.prototype.resetDrain = function() {
 	this.lvlLost = 0;
 	this.expLost = 0;
 	this.expStolen = 0;
-	this.lvlStolen = 0;
+	this.lvlStolen = 0;	
+	for(var i = 0; i < 8; i++){
+		this.drainParam[i] = 0;
+	}
 };
 
 Game_Actor_levelUp = Game_Actor.prototype.levelUp;
@@ -852,35 +874,38 @@ Game_Actor.prototype.levelUp = function(){
 // Additions to Game_Enemy
 //-----------------------------------------------------------------------------
 
-Game_Enemy.prototype.levelStats = function(levelAlteration) {
-	$leveledEnemies._data[this.nativeId].refreshExp();
+Game_Enemy.prototype.levelStats = function() {
+	storedEnemy = $leveledEnemies._data[this._enemyId];
+	storedEnemy.refreshExp();
+	var lvlA = storedEnemy.levelAlteration()
+	
 	this.hppercentage = this.hp / this.mhp;
 	this.mppercentage = this.mp / this.mmp;
 	if(this.enemy().meta.mhp){
-		this.addParam(0, parseInt(this.enemy().meta.mhp) * levelAlteration);
+		this.addParam(0, parseInt(this.enemy().meta.mhp) * lvlA + storedEnemy.drainParam[0]);
 		this.setHp(Math.round(this.mhp * this.hppercentage));
 	}
 	if(this.enemy().meta.mmp){	
-		this.addParam(1, parseInt(this.enemy().meta.mmp) * levelAlteration);
+		this.addParam(1, parseInt(this.enemy().meta.mmp) * lvlA + storedEnemy.drainParam[1]);
 		this.setMp(Math.round(this.mmp * this.mppercentage));
 	}
 	if(this.enemy().meta.atk){
-		this.addParam(2, parseInt(this.enemy().meta.atk) * levelAlteration);
+		this.addParam(2, parseInt(this.enemy().meta.atk) * lvlA + storedEnemy.drainParam[2]);
 	}
 	if(this.enemy().meta.def){
-		this.addParam(3, parseInt(this.enemy().meta.def) * levelAlteration);
+		this.addParam(3, parseInt(this.enemy().meta.def) * lvlA + storedEnemy.drainParam[3]);
 	}
 	if(this.enemy().meta.mat){
-		this.addParam(4, parseInt(this.enemy().meta.mat) * levelAlteration);
+		this.addParam(4, parseInt(this.enemy().meta.mat) * lvlA + storedEnemy.drainParam[4]);
 	}
 	if(this.enemy().meta.mdf){
-		this.addParam(5, parseInt(this.enemy().meta.mdf) * levelAlteration);	
+		this.addParam(5, parseInt(this.enemy().meta.mdf) * lvlA + storedEnemy.drainParam[5]);	
 	}
 	if(this.enemy().meta.agi){
-		this.addParam(6, parseInt(this.enemy().meta.agi) * levelAlteration);
+		this.addParam(6, parseInt(this.enemy().meta.agi) * lvlA + storedEnemy.drainParam[6]);
 	}
 	if(this.enemy().meta.lck){
-		this.addParam(7, parseInt(this.enemy().meta.lck) * levelAlteration);		
+		this.addParam(7, parseInt(this.enemy().meta.lck) * lvlA + storedEnemy.drainParam[7]);		
 	}	
 };
 	
@@ -888,19 +913,32 @@ var Game_Enemy_setup = Game_Enemy.prototype.setup;
 Game_Enemy.prototype.setup = function(enemyId, x, y) {	
 	Game_Enemy_setup.call(this, enemyId, x, y);	
 	this.nativeId = enemyId;
-	if(this.enemy().meta.level && $leveledEnemies._data[this._enemyId]){
-		$leveledEnemies._data[this._enemyId].refreshExp();
-		this.levelStats($leveledEnemies._data[this._enemyId].levelAlteration());
-
+	if($leveledEnemies._data[this._enemyId]){
+		this.levelStats();
 	}
-	if (this.enemy().meta.level && !$leveledEnemies._data[this._enemyId]){		
-			$leveledEnemies._data[this._enemyId] = new Leveled_Enemy(this._enemyId, this.enemy().name, parseInt(this.enemy().meta.level)); 
+	if (!$leveledEnemies._data[this._enemyId]){		
+			$leveledEnemies._data[this._enemyId] = new Leveled_Enemy(this._enemyId, this.enemy().name, 
+			parseInt(this.enemy().meta.level)); 
 			$leveledEnemies._data[this._enemyId].refreshExp();
 	}
-	if (!this.enemy().meta.level){
-		$leveledEnemies._data[this._enemyId] = null;
-	}
 };
+
+//-----------------------------------------------------------------------------
+// Window_Status
+//-----------------------------------------------------------------------------
+
+// var Window_Status_drawParameters = Window_Status.prototype.drawParameters
+// Window_Status.prototype.drawParameters = function(x, y) {
+    // var lineHeight = this.lineHeight();
+    // for (var i = 0; i < 6; i++) {
+        // var paramId = i + 2;
+        // var y2 = y + lineHeight * i;
+        // this.changeTextColor(this.systemColor());
+        // this.drawText(TextManager.param(paramId), x, y2, 160);
+        // this.resetTextColor();
+        // this.drawText(this._actor.param(paramId), x + 160, y2, 60, 'right');
+    // }
+// };
 
 //-----------------------------------------------------------------------------
 // Plugin Commands
@@ -911,21 +949,21 @@ Game_Interpreter.prototype.pluginCommand = function (command, args) {
 	Game_Interpreter_pluginCommand.call(this, command, args);
 	if (command.toLowerCase() === "leveldrain") {
 		if(!args[0]){
-			$gameMessage.add("missing argument [enemyId] for 'leveldrain'")
+			$gameMessage.add("missing argument [enemyId] for 'leveldrain'");
 		}
 		if(!args[1]){
-			$gameMessage.add("missing argument [amount] for 'leveldrain'")
+			$gameMessage.add("missing argument [amount] for 'leveldrain'");
 		}
 		if(!args[2]){
-			$gameMessage.add("missing argument [actorId] for 'leveldrain'")
+			$gameMessage.add("missing argument [actorId] for 'leveldrain'");
 		}
 		else{
 			var enemyId = parseInt(args[0]);
 			var amount = parseInt(args[1]);
 			var actorId = parseInt(args[2]);
-			$gameActors._data[actorId].initDrainStats();
 			if (!$leveledEnemies._data[enemyId]){
-				$leveledEnemies._data[enemyId] = new Leveled_Enemy(enemyId , $dataEnemies[enemyId].name, parseInt($dataEnemies[enemyId].meta.level)); 
+				$leveledEnemies._data[enemyId] = new Leveled_Enemy(enemyId , $dataEnemies[enemyId].name, 
+				parseInt($dataEnemies[enemyId].meta.level)); 
 			}
 			$leveledEnemies._data[enemyId].refreshExp();
 			if(amount > 0){
@@ -941,19 +979,18 @@ Game_Interpreter.prototype.pluginCommand = function (command, args) {
 	if (command.toLowerCase() === "expdrain") {
 		//expdrain enemy amount actor; Note: negative amount is expdrain vs enemy
 		if(!args[0]){
-			$gameMessage.add("missing argument [enemyId] for 'expdrain'")
+			$gameMessage.add("missing argument [enemyId] for 'expdrain'");
 		}
 		if(!args[1]){
-			$gameMessage.add("missing argument [amount] for 'expdrain'")
+			$gameMessage.add("missing argument [amount] for 'expdrain'");
 		}
 		if(!args[2]){
-			$gameMessage.add("missing argument [actorId] for 'expdrain'")
+			$gameMessage.add("missing argument [actorId] for 'expdrain'");
 		}
 		else{
 			var enemyId = parseInt(args[0]);
 			var amount = parseInt(args[1]);
 			var actorId = parseInt(args[2]);
-			$gameActors._data[actorId].initDrainStats();
 			if (!$leveledEnemies._data[enemyId]){
 				$leveledEnemies._data[enemyId] = new Leveled_Enemy(enemyId , $dataEnemies[enemyId].name, parseInt($dataEnemies[enemyId].meta.level)); 
 			}
@@ -970,13 +1007,13 @@ Game_Interpreter.prototype.pluginCommand = function (command, args) {
 	if (command.toLowerCase() === "allyleveldrain") {
 		//allyleveldrain actor1 amount actor2;
 		if(!args[0]){
-			$gameMessage.add("missing argument [actorId1] for 'allyleveldrain'")
+			$gameMessage.add("missing argument [actorId1] for 'allyleveldrain'");
 		}
 		if(!args[1]){
-			$gameMessage.add("missing argument [amount] for 'allyleveldrain'")
+			$gameMessage.add("missing argument [amount] for 'allyleveldrain'");
 		}
 		if(!args[2]){
-			$gameMessage.add("missing argument [actorId2] for 'allyleveldrain'")
+			$gameMessage.add("missing argument [actorId2] for 'allyleveldrain'");
 		}
 		else{
 			var actorId1 = parseInt(args[0]);
@@ -988,8 +1025,6 @@ Game_Interpreter.prototype.pluginCommand = function (command, args) {
 			if(!gameActors._data[actorId2]){
 				$gameActors._data[actorId2] = new Game_Actor(actorId2)
 			}
-			$gameActors._data[actorId1].initDrainStats();
-			$gameActors._data[actorId2].initDrainStats();
 			$gameActors._data[actorId1].levelDrain(amount, $gameActors._data[actorId2]);
 			this.setWaitMode('message');
 		}
@@ -997,13 +1032,13 @@ Game_Interpreter.prototype.pluginCommand = function (command, args) {
 	if (command.toLowerCase() === "allyexpdrain") {
 		//allyexpdrain actor1 amount actor2;
 		if(!args[0]){
-			$gameMessage.add("missing argument [actorId1] for 'allyexpdrain'")
+			$gameMessage.add("missing argument [actorId1] for 'allyexpdrain'");
 		}
 		if(!args[1]){
-			$gameMessage.add("missing argument [amount] for 'allyexpdrain'")
+			$gameMessage.add("missing argument [amount] for 'allyexpdrain'");
 		}
 		if(!args[2]){
-			$gameMessage.add("missing argument [actorId2] for 'allyexpdrain'")
+			$gameMessage.add("missing argument [actorId2] for 'allyexpdrain'");
 		}
 		else{
 			var actorId1 = parseInt(args[0]);
@@ -1015,8 +1050,6 @@ Game_Interpreter.prototype.pluginCommand = function (command, args) {
 			if(!$gameActors._data[actorId2]){
 				$gameActors._data[actorId2] = new Game_Actor(actorId2)
 			}
-			$gameActors._data[actorId1].initDrainStats();
-			$gameActors._data[actorId2].initDrainStats();
 			$gameActors._data[actorId1].expDrain(amount, $gameActors._data[actorId2]);
 			this.setWaitMode('message');
 		}
@@ -1024,7 +1057,7 @@ Game_Interpreter.prototype.pluginCommand = function (command, args) {
 	if (command.toLowerCase() === "resetleveldrain") {
 		//resetleveldrain all or resetleveldrain [enemyId]
 		if(!args[0]){
-			$gameMessage.add("missing argument [enemyId] for 'resetleveldrain'")
+			$gameMessage.add("missing argument [enemyId] for 'resetleveldrain'");
 		}
 		else{
 			if(args[0] == "all") {			
@@ -1056,13 +1089,26 @@ Game_Interpreter.prototype.pluginCommand = function (command, args) {
 			}
 		}
 	}
+	if (command.toLowerCase() === "refundstatusdrain") {	
+		//refundstatusdrain
+		for (var i = 0; $leveledEnemies._data.length > i; i++){
+			if($leveledEnemies._data[i]) {
+				$leveledEnemies._data[i].resetStatusDrain();
+			}
+		}
+		for (var i = 0; $gameActors._data.length > i; i++){
+			if($gameActors._data[i]) {
+				$gameActors._data[i].resetStatusDrain();
+			}
+		}
+	}
 	if (command.toLowerCase() === "getenemylevel"){
 		//getenemylevel [enemyId] [game variable]
 		if(!args[0]){
-			$gameMessage.add("missing argument [enemyId] for 'getenemylevel'")
+			$gameMessage.add("missing argument [enemyId] for 'getenemylevel'");
 		}
 		if(!args[1]){
-			$gameMessage.add("missing argument [game variable] for 'getenemylevel'")
+			$gameMessage.add("missing argument [game variable] for 'getenemylevel'");
 		}
 		else{
 			var enemyId = parseInt(args[0]);
@@ -1072,7 +1118,8 @@ Game_Interpreter.prototype.pluginCommand = function (command, args) {
 				$gameVariables._data[gameVar] = $leveledEnemies._data[enemyId].level;
 			}
 			else{
-				$leveledEnemies._data[enemyId] = new Leveled_Enemy(enemyId , $dataEnemies[enemyId].name, parseInt($dataEnemies[enemyId].meta.level));
+				$leveledEnemies._data[enemyId] = new Leveled_Enemy(enemyId , 
+				$dataEnemies[enemyId].name, parseInt($dataEnemies[enemyId].meta.level));
 				$gameVariables._data[gameVar] = $leveledEnemies._data[enemyId].level;
 			}
 		}
@@ -1080,10 +1127,10 @@ Game_Interpreter.prototype.pluginCommand = function (command, args) {
 	if (command.toLowerCase() === "getenemyexp"){
 		//getenemyexp [enemyId] [game variable]
 		if(!args[0]){
-			$gameMessage.add("missing argument [enemyId] for 'getenemyexp'")
+			$gameMessage.add("missing argument [enemyId] for 'getenemyexp'");
 		}
 		if(!args[1]){
-			$gameMessage.add("missing argument [game variable] for 'getenemyexp'")
+			$gameMessage.add("missing argument [game variable] for 'getenemyexp'");
 		}
 		else{
 			var enemyId = parseInt(args[0]);
@@ -1093,7 +1140,8 @@ Game_Interpreter.prototype.pluginCommand = function (command, args) {
 				$gameVariables._data[gameVar] = $leveledEnemies._data[enemyId]._exp;
 			}
 			else{
-				$leveledEnemies._data[enemyId] = new Leveled_Enemy(enemyId , $dataEnemies[enemyId].name, parseInt($dataEnemies[enemyId].meta.level));
+				$leveledEnemies._data[enemyId] = new Leveled_Enemy(enemyId , 
+				$dataEnemies[enemyId].name, parseInt($dataEnemies[enemyId].meta.level));
 				$leveledEnemies._data[enemyId].refreshExp();
 				$gameVariables._data[gameVar] = $leveledEnemies._data[enemyId]._exp;
 			}
@@ -1102,10 +1150,10 @@ Game_Interpreter.prototype.pluginCommand = function (command, args) {
 	if (command.toLowerCase() === "getenemydrainedlevel"){
 		//getenemydrainedlevel [enemyId] [game variable]
 		if(!args[0]){
-			$gameMessage.add("missing argument [enemyId] for 'getenemydrainedlevel'")
+			$gameMessage.add("missing argument [enemyId] for 'getenemydrainedlevel'");
 		}
 		if(!args[1]){
-			$gameMessage.add("missing argument [game variable] for 'getenemydrainedlevel'")
+			$gameMessage.add("missing argument [game variable] for 'getenemydrainedlevel'");
 		}
 		else{
 			var enemyId = parseInt(args[0]);
@@ -1119,10 +1167,10 @@ Game_Interpreter.prototype.pluginCommand = function (command, args) {
 	if (command.toLowerCase() === "getenemydrainedexp"){
 		//getenemydrainedexp [enemyId] [game variable]
 		if(!args[0]){
-			$gameMessage.add("missing argument [enemyId] for 'getenemydrainedexp'")
+			$gameMessage.add("missing argument [enemyId] for 'getenemydrainedexp'");
 		}
 		if(!args[1]){
-			$gameMessage.add("missing argument [game variable] for 'getenemydrainedexp'")
+			$gameMessage.add("missing argument [game variable] for 'getenemydrainedexp'");
 		}
 		else{
 			var enemyId = parseInt(args[0]);
@@ -1137,10 +1185,10 @@ Game_Interpreter.prototype.pluginCommand = function (command, args) {
 	if (command.toLowerCase() === "getactorslostlevel"){
 		//getactorslostlevel [actorId] [game variable]
 		if(!args[0]){
-			$gameMessage.add("missing argument [actorId] for 'getactorslostlevel'")
+			$gameMessage.add("missing argument [actorId] for 'getactorslostlevel'");
 		}
 		if(!args[1]){
-			$gameMessage.add("missing argument [game variable] for 'getactorslostlevel'")
+			$gameMessage.add("missing argument [game variable] for 'getactorslostlevel'");
 		}
 		else{
 			var actorId = parseInt(args[0]);
@@ -1151,10 +1199,10 @@ Game_Interpreter.prototype.pluginCommand = function (command, args) {
 	if (command.toLowerCase() === "getactorslostexp"){
 		//getactorslostexp [actorId] [game variable]
 		if(!args[0]){
-			$gameMessage.add("missing argument [actorId] for 'getactorslostexp'")
+			$gameMessage.add("missing argument [actorId] for 'getactorslostexp'");
 		}
 		if(!args[1]){
-			$gameMessage.add("missing argument [game variable] for 'getactorslostexp'")
+			$gameMessage.add("missing argument [game variable] for 'getactorslostexp'");
 		}
 		else{
 			var actorId = parseInt(args[0]);
@@ -1165,12 +1213,129 @@ Game_Interpreter.prototype.pluginCommand = function (command, args) {
 	if (command.toLowerCase() === "showenemystats"){
 		//showenemystats [enemyId] [game variable]
 		if(!args[0]){
-			$gameMessage.add("missing argument [enemyId] for 'showenemystats'")
+			$gameMessage.add("missing argument [enemyId] for 'showenemystats'");
 		}
 		else{
 			var actorId = parseInt(args[0]);
 			var gameVar = parseInt(args[1]);
 			$gameVariables._data[gameVar] = $leveledEnemies._data[enemyId].displayStatsUp();
+		}
+	}
+	if (command.toLowerCase() === "statusdrain") {
+		//statusdrain enemy status amount actor; Note: negative amount is statusdrain vs enemy
+		if(!args[0]){
+			$gameMessage.add("missing argument [enemyId] for 'statusdrain'");
+		}
+		if(!args[1]){
+			$gameMessage.add("missing argument [status] for 'statusdrain'");
+		}
+		if(!args[2]){
+			$gameMessage.add("missing argument [amount] for 'statusdrain'");
+		}
+		if(!args[3]){
+			$gameMessage.add("missing argument [actorId] for 'statusdrain'");
+		}
+		else{
+			var enemyId = parseInt(args[0]);
+			var status = args[1];
+			var amount = parseInt(args[2]);
+			var actorId = parseInt(args[3]);
+			var param = null;
+			if (!$leveledEnemies._data[enemyId]){
+				$leveledEnemies._data[enemyId] = new Leveled_Enemy(enemyId , 
+				$dataEnemies[enemyId].name, parseInt($dataEnemies[enemyId].meta.level)); 
+			}
+			if(status.toLowerCase() === "mhp"){
+				param = 0;
+			}
+			else if(status.toLowerCase() === "mmp"){
+				param = 1;
+			}
+			else if(status.toLowerCase() === "atk"){
+				param = 2;
+			}
+			else if(status.toLowerCase() === "def"){
+				param = 3;
+			}
+			else if(status.toLowerCase() === "mat"){
+				param = 4;
+			}
+			else if(status.toLowerCase() === "mdf"){
+				param = 5;
+			}
+			else if(status.toLowerCase() === "agi"){
+				param = 6;
+			}
+			else if(status.toLowerCase() === "lck"){
+				param = 7;
+			}
+			if(!param) {
+				if(amount > 0){
+					$leveledEnemies._data[enemyId].statusDrain(param, amount, $gameActors._data[actorId]);
+				}
+				else {
+					$gameActors._data[actorId].statusDrain(param, -amount, $leveledEnemies._data[enemyId]);
+				}
+			}
+			this.setWaitMode('message');
+		}
+	}	
+	if (command.toLowerCase() === "allystatusdrain") {
+		//allystatusdrain actor status amount actor;
+		if(!args[0]){
+			$gameMessage.add("missing argument [actorId1] for 'allystatusdrain'");
+		}
+		if(!args[1]){
+			$gameMessage.add("missing argument [status] for 'allystatusdrain'");
+		}
+		if(!args[2]){
+			$gameMessage.add("missing argument [amount] for 'allystatusdrain'");
+		}
+		if(!args[3]){
+			$gameMessage.add("missing argument [actorId2] for 'allystatusdrain'");
+		}
+		else{
+			var enemyId = parseInt(args[0]);
+			var status = args[1];
+			var amount = parseInt(args[2]);
+			var actorId = parseInt(args[3]);
+			var param = null;
+			if (!$leveledEnemies._data[enemyId]){
+				$leveledEnemies._data[enemyId] = new Leveled_Enemy(enemyId , $dataEnemies[enemyId].name, parseInt($dataEnemies[enemyId].meta.level)); 
+			}
+			if(status.toLowerCase() === "mhp"){
+				param = 0;
+			}
+			else if(status.toLowerCase() === "mmp"){
+				param = 1;
+			}
+			else if(status.toLowerCase() === "atk"){
+				param = 2;
+			}
+			else if(status.toLowerCase() === "def"){
+				param = 3;
+			}
+			else if(status.toLowerCase() === "mat"){
+				param = 4;
+			}
+			else if(status.toLowerCase() === "mdf"){
+				param = 5;
+			}
+			else if(status.toLowerCase() === "agi"){
+				param = 6;
+			}
+			else if(status.toLowerCase() === "lck"){
+				param = 7;
+			}
+			if(!param) {
+				if(amount > 0){
+					$gameActors._data[actorId1].statusDrain(param, amount, $leveledEnemies._data[actorId2]);
+				}
+				else {
+					$gameActors._data[actorId2].statusDrain(param, -amount, $leveledEnemies._data[actorId1]);
+				}
+			}
+			this.setWaitMode('message');
 		}
 	}
 };	
