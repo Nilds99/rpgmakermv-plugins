@@ -13,6 +13,8 @@ LevelDrain.js adds Level and experience drain for enemies and actors.
 
    4. Multiple Plugincommands for controlling and reading important statistics. 
    
+   5. Status drain mechanic for enemies and actors.
+   
 # レベルドレイン (RPGツクールMV)
 (機械翻訳) LevelDrain.js 敵やアクターのレベルや経験値ドレイン
 
@@ -26,8 +28,11 @@ LevelDrain.js adds Level and experience drain for enemies and actors.
    3. レベルドレインのメッセージのカスタマイズが可能です。
 
    4. 重要な統計情報を制御し、読み取るための複数のプラグインコマンド。
+   
+   5. 敵やアクターのステータス・ドレインメカニック。
 
 Changelog:
+v1.2 Improved drain messages, added status drain mechanic, minor code improvements
 
 v1.1 Bugfixes, added stats-display, added plugin command "showenemystats [Enemy]"
 
