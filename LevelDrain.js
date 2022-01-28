@@ -60,31 +60,31 @@
  *
  *  Example: <level:5> → the enemy will start at level 5
  *
- *  <level:x>
+ *  <level:x>	
  *  defines the initial level for an enemy and enables level drain.
  *	
- *  <mhp:x>
+ *  <mhp:x>	
  *  defines the additional maxHp for every level up.
  *
- *  <mmp:x>
+ *  <mmp:x>	
  *  defines the additional maxMp for every level up.
  *
- *  <atk:x>
+ *  <atk:x>	
  *  defines the additional attack for every level up.
  *
- *  <def:x>
+ *  <def:x>	 
  *  defines the additional defense for every level up.
  *
- *  <mat:x>
+ *  <mat:x>	
  *  defines the additional magick for every level up.
  *
- *  <mdf:x>
+ *  <mdf:x>	
  *  defines the additional magick for every level up.
  *
- *  <agi:x>
+ *  <agi:x>	 
  *  defines the additional agility for every level up.
  *
- *  <lck:x>
+ *  <lck:x>	
  *  defines the additional for every level up.
  *
  * =============================================================================
@@ -913,14 +913,21 @@ var Game_Enemy_setup = Game_Enemy.prototype.setup;
 Game_Enemy.prototype.setup = function(enemyId, x, y) {	
 	Game_Enemy_setup.call(this, enemyId, x, y);	
 	this.nativeId = enemyId;
-	if($leveledEnemies._data[this._enemyId]){
-		this.levelStats();
-	}
-	if (!$leveledEnemies._data[this._enemyId]){		
+	if($dataEnemies[this._enemyId].meta.level){
+		if (!$leveledEnemies._data[this._enemyId]){		
 			$leveledEnemies._data[this._enemyId] = new Leveled_Enemy(this._enemyId, this.enemy().name, 
 			parseInt(this.enemy().meta.level)); 
 			$leveledEnemies._data[this._enemyId].refreshExp();
+		}
+		this.levelStats();
 	}
+	else
+	{
+		if($leveledEnemies._data[this._enemyId]){
+			$leveledEnemies._data[this._enemyId] = null;
+		}
+	}
+	
 };
 
 //-----------------------------------------------------------------------------
