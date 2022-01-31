@@ -580,7 +580,7 @@ Game_Action.prototype.apply = function(target) {
 			this.subject().levelDrain(this.item().meta.Leveldrain, target);
 		}
 		else if (this.item().meta.Expdrain) {
-			this.subject().expDrain(this.item().meta.Leveldrain, target);
+			this.subject().expDrain(this.item().meta.Expdrain, target);
 		}
 	}
 };
