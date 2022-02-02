@@ -9,11 +9,11 @@
  * @author Slinds
  *
  * @param Level reduced message
- * @desc %1 = target name %2 = lost Level %3 = lost Exp %4 subject name %5 = new line
+ * @desc %1 = target name %2 = lost Level %3 = lost Exp %4 = new line
  * @default The Level of %1 decreased by %2 (Exp drained: %3)
  *
  * @param Exp reduced message
- * @desc %1 = target name %2 = lost Exp %3 = subject name %4 = new line
+ * @desc %1 = target name %2 = lost Exp %3 = new line
  * @default %1 got %2 Exp drained
  *
  * @param Level increased message
@@ -184,11 +184,11 @@
  * @author Slinds
  *
  * @param Level reduced message
- * @desc %1 = 目標名 %2 = ロストレベル %3 = ロストExp %4 被験者名 %5 = 改行
+ * @desc %1 = 目標名 %2 = ロストレベル %3 = ロストExp %4 = 改行
  * @default %1のレベルが %2 下がった（Expドレイン %3）
  *
  * @param Exp reduced message
- * @desc %1 = 目標名 %2 = ロストExp %3 = 被験者名 %4 = 改行
+ * @desc %1 = 目標名 %2 = ロストExp %3 = 改行
  * @default %1は %2 Expを失った 
  *
  * @param Level increased message
@@ -469,58 +469,6 @@ Leveled_Enemy.prototype.enemy = function() {
     return $dataEnemies[this.enemyId];
 };
 
-Leveled_Enemy.prototype.paramBase = function(paramId) {
-    return this.enemy().params[paramId];
-};
-
-
-
-Leveled_Enemy.prototype.levelParam = function(paramId) {
-	switch(paramId) {
-		case 0:
-			if(this.enemy().meta.mhp){
-					this._paramPlus[0] = parseInt(this.enemy().meta.mhp) * this.levelAlteration();
-			}
-			break;
-		case 1:
-			if(this.enemy().meta.mmp){	
-				this._paramPlus[1] = parseInt(this.enemy().meta.mmp) * this.levelAlteration();
-			}
-			break;
-		case 2:
-			if(this.enemy().meta.atk){
-				this._paramPlus[2] = parseInt(this.enemy().meta.atk) * this.levelAlteration();
-			}
-			break;
-		case 3:
-			if(this.enemy().meta.def){
-				this._paramPlus[3] = parseInt(this.enemy().meta.def) * this.levelAlteration();
-			}
-			break;
-		case 4:
-			if(this.enemy().meta.mat){
-				this._paramPlus[4] = parseInt(this.enemy().meta.mat) * this.levelAlteration();
-			}
-			break;
-		case 5:
-			if(this.enemy().meta.mdf){
-				this._paramPlus[5] = parseInt(this.enemy().meta.mdf) * this.levelAlteration();	
-			}
-			break;
-		case 6:
-			if(this.enemy().meta.agi){
-				this._paramPlus[6] = parseInt(this.enemy().meta.agi) * this.levelAlteration();
-			}
-			break;
-		case 7:
-			if(this.enemy().meta.lck){
-				this._paramPlus[7] = parseInt(this.enemy().meta.lck) * this.levelAlteration();		
-			}	
-			break;
-		default:
-	}
-};
-
 Leveled_Enemy.prototype.paramCorrection = function(){
 	if (this.hppercentage != 0) {
 		if($gameParty.inBattle()){
@@ -556,10 +504,64 @@ Leveled_Enemy.prototype.setParamPercentage = function(){
 
 };
 
+Leveled_Enemy.prototype.paramBase = function(paramId) {
+    return this.enemy().params[paramId];
+};
+
+Leveled_Enemy.prototype.paramLevelDrain = function(paramId) {
+	return this.translateMeta(paramId) * this.levelAlteration() + this.drainParam[paramId];
+};
+
+Leveled_Enemy.prototype.translateMeta = function(paramId){
+	switch(paramId){
+		case 0:
+			if(this.enemy().meta.mhp){
+				return parseInt(this.enemy().meta.mhp);
+			}
+			break;
+		case 1:
+			if(this.enemy().meta.mmp){	
+				return parseInt(this.enemy().meta.mmp);
+			}
+			break;
+		case 2:
+			if(this.enemy().meta.atk){
+				return parseInt(this.enemy().meta.atk);
+			}
+			break;
+		case 3:
+			if(this.enemy().meta.def){
+				return parseInt(this.enemy().meta.def);
+			}
+			break;
+		case 4:
+			if(this.enemy().meta.mat){
+				return parseInt(this.enemy().meta.mat);
+			}
+			break;
+		case 5:
+			if(this.enemy().meta.mdf){
+				return parseInt(this.enemy().meta.mdf);	
+			}
+			break;
+		case 6:
+			if(this.enemy().meta.agi){
+				return parseInt(this.enemy().meta.agi);
+			}
+			break;
+		case 7:
+			if(this.enemy().meta.lck){
+				return parseInt(this.enemy().meta.lck);			
+			}	
+			break;
+		default:
+			
+	}
+	return 0;
+}
+
 Leveled_Enemy.prototype.param = function(paramId) {
-	this.levelParam(paramId);
-    var value = this.paramBase(paramId) + this.paramPlus(paramId) + this.drainParam[paramId];
-    value *= this.paramRate(paramId) * this.paramBuffRate(paramId);
+    var value = this.paramBase(paramId) + this.paramLevelDrain(paramId);
     var maxValue = this.paramMax(paramId);
     var minValue = this.paramMin(paramId);
     return Math.round(value.clamp(minValue, maxValue));
@@ -761,61 +763,61 @@ Game_Battler.prototype.saveUnchangedParams = function(){
 	}
 };
 
-Game_Battler.prototype.levelDisplayFormat = function() {
-	var stat = '[' + this.name() +' \\c[0]' + TextManager.level + '\\c[0] ' + 
-	(this.level - this.lvlGain);
-	if (this.lvlGain > 0) {
-		stat += ' \\c[24]+' + this.lvlGain + '\\c[0]';
+Game_Battler.prototype.nameDisplayFormat = function() {
+	var stat = '[' + this.name();
+	if (this.level > 0){
+		stat += ' \\c[0]' + TextManager.level + '\\c[0] ' + (this.level - this.lvlGain)
+		+ ' ' + this.displayStatAlteration(this.lvlGain);
 	}
-	else if (this.lvlGain < 0) {
-		stat += ' \\c[18]' + this.lvlGain + '\\c[0]';
-	}
-	return stat + '] - ';
+	return stat + ']';
 };
 
-Game_Battler.prototype.expDisplayFormat = function(padCurrent, padAddition) {
-	var stat = '\\c[0]' + TextManager.expA + '\\c[0]' + 
-	(this.currentExp() - this.expGain).toString().padStart(padCurrent);
-	if (this.expGain > 0) {
-		stat += ' \\c[24]+' + this.expGain.toString().padEnd(padAddition) + '\\c[0]';
+Game_Battler.prototype.expDisplayFormat = function(padParam, padAddition) {
+	if (this.currentExp() > 0) {
+		var stat = '\\c[0]' + TextManager.expA + '\\c[0]' + 
+		(this.currentExp() - this.expGain).toString().padStart(padParam);
+		stat += ' ' + this.displayStatAlteration(this.expGain, padAddition);
+		return stat;
 	}
-	else if (this.expGain < 0) {
-		stat += ' \\c[18]' + this.expGain.toString().padEnd(padAddition+1) + '\\c[0]';
-	}
-	else {
-		stat += ''.padStart(padAddition+2);
-	}
-	return stat;
 };
 
-Game_Battler.prototype.statsDisplayFormat = function(statText, padStat, padCurrent, 
+Game_Battler.prototype.statsDisplayFormat = function(statText, padStat, padParam, 
 padAddition, param, fillstring = ' ') {
 	var stat = '\\c[16]' + statText.padEnd(padStat, fillstring) + '\\c[0]' + 
-	this.oldParams[param].toString().padStart(padCurrent);
+	this.oldParams[param].toString().padStart(padParam);
 	var paramGain = this.param(param) - this.oldParams[param];
-	if (paramGain > 0) {
-		stat += ' \\c[24]+' + paramGain.toString().padEnd(padAddition) + '\\c[0]';
-	}
-	else if (paramGain < 0) {
-		stat += ' \\c[18]' + paramGain.toString().padEnd(padAddition+1) + '\\c[0]';
-	}
-	else {
-		stat += ''.padStart(padAddition+2);
-	}
+	stat += ' ' + this.displayStatAlteration(paramGain, padAddition);
 	return stat;
+	
 };
+Game_Battler.prototype.displayStatAlteration = function(paramAlt, padding = 0) {
+	var color = 0;
+	var symbol = '';
+	var value = '';
+	if (paramAlt != 0) {
+		if (paramAlt > 0) { //positive
+			color = 24;
+			symbol = '+';
+		}
+		else{ //negative
+			color = 18;
+		}
+		value = symbol + paramAlt
+	}
+	return '\\c[' + color + ']' + value.padEnd(padding) + '\\c[0]';
+}
 
 Game_Battler.prototype.displayStatsUp = function() {
-	var stats = this.levelDisplayFormat();
-	stats += this.expDisplayFormat(8, 8)+ '\n';
-	stats += this.statsDisplayFormat(TextManager.hpA, 3, 6, 5, 0);
-	stats += this.statsDisplayFormat(TextManager.mpA, 3, 6, 5, 1) + '\n';
-	stats += this.statsDisplayFormat(TextManager.param(2), 4, 4, 5, 2);
-	stats += this.statsDisplayFormat(TextManager.param(4), 4, 4, 5, 4);
-	stats += this.statsDisplayFormat(TextManager.param(5), 4, 4, 5, 5) + '\n';
-	stats += this.statsDisplayFormat(TextManager.param(3), 4, 4, 5, 3);
-	stats += this.statsDisplayFormat(TextManager.param(6), 4, 4, 5, 6);
-	stats += this.statsDisplayFormat(TextManager.param(7), 4, 4, 5, 7, '　');
+	var stats = this.nameDisplayFormat();
+	stats += ' - ' + this.expDisplayFormat(8, 8)+ '\n';
+	stats += this.statsDisplayFormat(TextManager.hpA, 3, 6, 6, 0);
+	stats += this.statsDisplayFormat(TextManager.mpA, 3, 6, 6, 1) + '\n';
+	stats += this.statsDisplayFormat(TextManager.param(2), 4, 4, 6, 2);
+	stats += this.statsDisplayFormat(TextManager.param(4), 4, 4, 6, 4);
+	stats += this.statsDisplayFormat(TextManager.param(5), 4, 4, 6, 5) + '\n';
+	stats += this.statsDisplayFormat(TextManager.param(3), 4, 4, 6, 3);
+	stats += this.statsDisplayFormat(TextManager.param(6), 4, 4, 6, 6);
+	stats += this.statsDisplayFormat(TextManager.param(7), 4, 4, 6, 7, '　');
 	$gameMessage.newPage();
 	$gameMessage.add(stats);
 };
